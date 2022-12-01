@@ -12,3 +12,4 @@ cabal.project.local
 dist-newstyle/
 tests/py-tmp
 tests/tmp
+cabal.project
