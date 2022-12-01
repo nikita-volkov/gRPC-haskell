@@ -17,13 +17,14 @@ module Network.GRPC.LowLevel.GRPC(
 , C.StatusDetails(..)
 ) where
 
-import           Control.Concurrent     (threadDelay, myThreadId)
+import           Control.Concurrent
 import           Control.Exception
-import           Data.Functor (($>))
+import           Control.Monad
 import           Data.Typeable
 import           Network.GRPC.LowLevel.GRPC.MetadataMap (MetadataMap(..))
 import qualified Network.GRPC.Unsafe    as C
 import qualified Network.GRPC.Unsafe.Op as C
+import           System.IO.Unsafe
 
 -- | Functions as a proof that the gRPC core has been started. The gRPC core
 -- must be initialized to create any gRPC state, so this is a requirement for
@@ -39,7 +40,11 @@ withGRPC = bracket startGRPC stopGRPC
 -- Where possible, consider using 'withGRPC' which handles shutdown of gRPC 
 -- automatically with 'bracket'. 
 startGRPC :: IO GRPC 
-startGRPC = C.grpcInit $> GRPC
+startGRPC = do
+  initialized <- takeMVar globalInitState
+  unless initialized C.grpcInit
+  putMVar globalInitState True
+  return GRPC
 
 -- | Shutdown gRPC core given a 'GRPC' witnessing that gRPC core has been 
 -- initialized.
@@ -92,3 +97,10 @@ grpcDebug' str = do
 
 threadDelaySecs :: Int -> IO ()
 threadDelaySecs = threadDelay . (* 10^(6::Int))
+
+-- * Initialization state
+
+{-# NOINLINE globalInitState #-}
+globalInitState :: MVar Bool
+globalInitState =
+  unsafePerformIO $ newMVar False
